@@ -1,19 +1,63 @@
+import sqlite3
 import tkinter as tk
 from tkinter import messagebox, ttk
 
-# --- БАЗА ДАННЫХ ТОВАРОВ ---
-INITIAL_PRODUCTS = [
-    {"id": 1, "name": "Air Max 270", "brand": "Nike", "category": "Спортивная", "price": 14990.00, "material": "Текстиль"},
-    {"id": 2, "name": "Ultraboost Light", "brand": "Adidas", "category": "Спортивная", "price": 18500.00, "material": "Текстиль"},
-    {"id": 3, "name": "Classic Oxford", "brand": "Ecco", "category": "Классическая", "price": 12300.00, "material": "Кожа"},
-    {"id": 4, "name": "6-Inch Premium Boot", "brand": "Timberland", "category": "Зимняя", "price": 24900.00, "material": "Нубук"},
-    {"id": 5, "name": "Chuck Taylor All Star", "brand": "Converse", "category": "Повседневная", "price": 8200.00, "material": "Хлопок"}
-]
+DB_NAME = "shoe_store.db"
 
-USERS = {
-    "admin": {"password": "123", "role": "Администратор"},
-    "manager": {"password": "123", "role": "Менеджер"}
-}
+# --- ИНИЦИАЛИЗАЦИЯ БАЗЫ ДАННЫХ ---
+def init_db():
+    """Создает базу данных и таблицы, если они еще не существуют."""
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    
+    # Таблица пользователей
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT UNIQUE NOT NULL,
+            password TEXT NOT NULL,
+            role TEXT NOT NULL
+        )
+    ''')
+    
+    # Таблица товаров
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS products (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            brand TEXT NOT NULL,
+            category TEXT NOT NULL,
+            price REAL NOT NULL,
+            material TEXT NOT NULL
+        )
+    ''')
+    
+    # Добавляем стандартных пользователей, если таблица пуста
+    cursor.execute("SELECT COUNT(*) FROM users")
+    if cursor.fetchone()[0] == 0:
+        cursor.executemany(
+            "INSERT INTO users (username, password, role) VALUES (?, ?, ?)",
+            [("admin", "123", "Администратор"), ("manager", "123", "Менеджер")]
+        )
+        
+    # Добавляем стартовые товары, если таблица пуста
+    cursor.execute("SELECT COUNT(*) FROM products")
+    if cursor.fetchone()[0] == 0:
+        initial_products = [
+            ("Air Max 270", "Nike", "Спортивная", 14990.00, "Текстиль"),
+            ("Ultraboost Light", "Adidas", "Спортивная", 18500.00, "Текстиль"),
+            ("Classic Oxford", "Ecco", "Классическая", 12300.00, "Кожа"),
+            ("6-Inch Premium Boot", "Timberland", "Зимняя", 24900.00, "Нубук"),
+            ("Chuck Taylor All Star", "Converse", "Повседневная", 8200.00, "Хлопок")
+        ]
+        cursor.executemany(
+            "INSERT INTO products (name, brand, category, price, material) VALUES (?, ?, ?, ?, ?)",
+            initial_products
+        )
+        
+    conn.commit()
+    conn.close()
+
 
 # --- ЦВЕТОВЫЕ СТИЛИ И ПАЛИТРЫ ТЕМ ---
 THEMES = {
@@ -34,43 +78,36 @@ THEMES = {
     }
 }
 
+
 class ShoeStoreApp(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("Информационная система: Магазин обуви")
-        self.geometry("950x650")
+        self.geometry("1000x650")
         
         self.current_theme = "Темная классика"
         self.current_user = None
         self.current_role = None
-        self.products = INITIAL_PRODUCTS.copy()
         
-        # Движок современных стилей TTK
         self.style = ttk.Style()
-        
         self.show_login_screen()
 
     def update_theme_engine(self):
-        """Полная перерисовка всех стилей приложения без использования старых Tk-элементов."""
+        """Полная перерисовка всех стилей приложения."""
         colors = THEMES[self.current_theme]
         self.configure(bg=colors["bg"])
-        
         self.style.theme_use("clam")
         
-        # Стилизация стандартных панелей (ТТК Фреймы)
         self.style.configure("TFrame", background=colors["bg"])
         self.style.configure("Card.TFrame", background=colors["card"])
         self.style.configure("Top.TFrame", background=colors["card"])
         
-        # Стилизация рамок с текстом (ТТК LabelFrame)
-        self.style.configure("TLableFrame", background=colors["bg"], foreground=colors["accent"])
-        self.style.configure("TLableFrame.Label", background=colors["bg"], foreground=colors["accent"], font=("Arial", 11, "bold"))
+        self.style.configure("TLabelframe", background=colors["bg"], foreground=colors["accent"])
+        self.style.configure("TLabelframe.Label", background=colors["bg"], foreground=colors["accent"], font=("Arial", 11, "bold"))
         
-        # Стилизация текстовых надписей (ТТК Метки)
         self.style.configure("TLabel", background=colors["bg"], foreground=colors["fg"], font=("Arial", 10))
         self.style.configure("Top.TLabel", background=colors["card"], foreground=colors["fg"], font=("Arial", 10, "bold"))
         
-        # Стилизация кнопок действий (ТТК Кнопки)
         self.style.configure("TButton", background=colors["card"], foreground=colors["fg"], bordercolor=colors["bg"], font=("Arial", 10, "bold"), focuscolor=colors["accent"])
         self.style.map("TButton", background=[("active", colors["accent"]), ("pressed", colors["accent"])], foreground=[("active", "#FFFFFF")])
         
@@ -80,52 +117,110 @@ class ShoeStoreApp(tk.Tk):
         self.style.configure("Del.TButton", background="#E74C3C", foreground="#FFFFFF")
         self.style.map("Del.TButton", background=[("active", "#C0392B")])
 
-        # Стилизация интерактивных выпадающих списков (ТТК Combobox)
         self.style.configure("TCombobox", fieldbackground=colors["entry_bg"], background=colors["card"], foreground=colors["fg"], arrowcolor=colors["accent"], bordercolor=colors["bg"])
         
-        # Стилизация таблицы с товарами (Treeview)
         self.style.configure("Treeview", background=colors["card"], foreground=colors["fg"], fieldbackground=colors["card"], rowheight=25, bordercolor=colors["bg"], lightcolor=colors["bg"])
         self.style.map("Treeview", background=[("selected", colors["accent"])], foreground=[("selected", "#FFFFFF")])
         self.style.configure("Treeview.Heading", background=colors["bg"], foreground=colors["accent"], font=("Arial", 10, "bold"), bordercolor=colors["bg"])
         
-        # Стилизация полос прокрутки
         self.style.configure("Vertical.TScrollbar", background=colors["card"], troughcolor=colors["bg"], bordercolor=colors["bg"], arrowcolor=colors["accent"])
 
-    # ================= ФУНКЦИЯ 1: АВТОРИЗАЦИЯ =================
+    # ================= ЭКРАН 1: АВТОРИЗАЦИЯ =================
     def show_login_screen(self):
         self.clear_screen()
         self.update_theme_engine()
         colors = THEMES[self.current_theme]
         
-        # Главный контейнер авторизации
         main_bg = ttk.Frame(self)
         main_bg.pack(fill="both", expand=True)
         
         login_frame = ttk.LabelFrame(main_bg, text=" Авторизация пользователя ", padding=20)
-        login_frame.place(relx=0.5, rely=0.5, anchor="center", width=350, height=250)
+        login_frame.place(relx=0.5, rely=0.5, anchor="center", width=350, height=300)
         
-        ttk.Label(login_frame, text="Логин (admin / manager):").pack(anchor="w", pady=2)
+        ttk.Label(login_frame, text="Логин:").pack(anchor="w", pady=2)
         self.login_entry = tk.Entry(login_frame, font=("Arial", 11), bg=colors["entry_bg"], fg=colors["fg"], insertbackground=colors["accent"], highlightthickness=1, highlightbackground=colors["card"], highlightcolor=colors["accent"], bd=0)
         self.login_entry.pack(fill="x", pady=5)
         
-        ttk.Label(login_frame, text="Пароль (123):").pack(anchor="w", pady=2)
+        ttk.Label(login_frame, text="Пароль:").pack(anchor="w", pady=2)
         self.password_entry = tk.Entry(login_frame, font=("Arial", 11), show="*", bg=colors["entry_bg"], fg=colors["fg"], insertbackground=colors["accent"], highlightthickness=1, highlightbackground=colors["card"], highlightcolor=colors["accent"], bd=0)
         self.password_entry.pack(fill="x", pady=5)
         
         btn_login = ttk.Button(login_frame, text="Войти в систему", command=self.handle_login)
-        btn_login.pack(fill="x", pady=15)
+        btn_login.pack(fill="x", pady=(15, 5))
+        
+        btn_reg_screen = ttk.Button(login_frame, text="Зарегистрироваться", command=self.show_register_screen)
+        btn_reg_screen.pack(fill="x", pady=5)
 
     def handle_login(self):
         username = self.login_entry.get().strip()
         password = self.password_entry.get().strip()
         
-        if username in USERS and USERS[username]["password"] == password:
+        conn = sqlite3.connect(DB_NAME)
+        cursor = conn.cursor()
+        cursor.execute("SELECT role FROM users WHERE username = ? AND password = ?", (username, password))
+        result = cursor.fetchone()
+        conn.close()
+        
+        if result:
             self.current_user = username
-            self.current_role = USERS[username]["role"]
+            self.current_role = result[0]
             messagebox.showinfo("Успех", f"Добро пожаловать, {username} ({self.current_role})!")
             self.show_main_screen()
         else:
             messagebox.showerror("Ошибка", "Неверный логин или пароль!")
+
+    # ================= ЭКРАН 2: РЕГИСТРАЦИЯ =================
+    def show_register_screen(self):
+        self.clear_screen()
+        colors = THEMES[self.current_theme]
+        
+        main_bg = ttk.Frame(self)
+        main_bg.pack(fill="both", expand=True)
+        
+        reg_frame = ttk.LabelFrame(main_bg, text=" Регистрация нового аккаунта ", padding=20)
+        reg_frame.place(relx=0.5, rely=0.5, anchor="center", width=350, height=340)
+        
+        ttk.Label(reg_frame, text="Придумайте логин:").pack(anchor="w", pady=2)
+        self.reg_login_entry = tk.Entry(reg_frame, font=("Arial", 11), bg=colors["entry_bg"], fg=colors["fg"], insertbackground=colors["accent"], highlightthickness=1, highlightbackground=colors["card"], highlightcolor=colors["accent"], bd=0)
+        self.reg_login_entry.pack(fill="x", pady=5)
+        
+        ttk.Label(reg_frame, text="Придумайте пароль:").pack(anchor="w", pady=2)
+        self.reg_password_entry = tk.Entry(reg_frame, font=("Arial", 11), show="*", bg=colors["entry_bg"], fg=colors["fg"], insertbackground=colors["accent"], highlightthickness=1, highlightbackground=colors["card"], highlightcolor=colors["accent"], bd=0)
+        self.reg_password_entry.pack(fill="x", pady=5)
+        
+        ttk.Label(reg_frame, text="Выберите роль в системе:").pack(anchor="w", pady=2)
+        self.reg_role_combo = ttk.Combobox(reg_frame, values=["Менеджер", "Администратор"], state="readonly")
+        self.reg_role_combo.set("Менеджер")
+        self.reg_role_combo.pack(fill="x", pady=5)
+        
+        btn_do_reg = ttk.Button(reg_frame, text="Создать аккаунт", style="Add.TButton", command=self.handle_registration)
+        btn_do_reg.pack(fill="x", pady=(15, 5))
+        
+        btn_back = ttk.Button(reg_frame, text="Назад к авторизации", command=self.show_login_screen)
+        btn_back.pack(fill="x", pady=5)
+
+    def handle_registration(self):
+        username = self.reg_login_entry.get().strip()
+        password = self.reg_password_entry.get().strip()
+        role = self.reg_role_combo.get()
+        
+        if not username or not password:
+            messagebox.showwarning("Ошибка ввода", "Все поля должны быть заполнены!")
+            return
+            
+        conn = sqlite3.connect(DB_NAME)
+        cursor = conn.cursor()
+        try:
+            # Пытаемся вставить пользователя в базу данных
+            cursor.execute("INSERT INTO users (username, password, role) VALUES (?, ?, ?)", (username, password, role))
+            conn.commit()
+            messagebox.showinfo("Успех", f"Пользователь {username} успешно зарегистрирован в базе данных!")
+            conn.close()
+            self.show_login_screen()
+        except sqlite3.IntegrityError:
+            # Ошибка сработает, если username нарушает UNIQUE ограничение
+            conn.close()
+            messagebox.showerror("Ошибка", f"Логин '{username}' уже занят! Выберите другой.")
 
     # ================= ГЛАВНЫЙ ЭКРАН И ИНТЕРФЕЙС =================
     def show_main_screen(self):
@@ -133,7 +228,6 @@ class ShoeStoreApp(tk.Tk):
         self.update_theme_engine()
         colors = THEMES[self.current_theme]
         
-        # Верхняя панель управления (Информация о пользователе и темы)
         top_bar = ttk.Frame(self, style="Top.TFrame", height=50)
         top_bar.pack(fill="x", side="top", ipady=5, ipadx=10)
         
@@ -143,7 +237,6 @@ class ShoeStoreApp(tk.Tk):
         btn_logout = ttk.Button(top_bar, text="Выйти", command=self.show_login_screen, style="TButton")
         btn_logout.pack(side="left", padx=15, pady=5)
         
-        # Выпадающий список смены тем
         self.theme_combo = ttk.Combobox(top_bar, values=list(THEMES.keys()), state="readonly", width=22)
         self.theme_combo.set(self.current_theme)
         self.theme_combo.pack(side="right", padx=10, pady=5)
@@ -151,163 +244,165 @@ class ShoeStoreApp(tk.Tk):
         
         ttk.Label(top_bar, text="Тема оформления:", style="Top.TLabel").pack(side="right", padx=5, pady=5)
         
-        # Главный контейнер рабочих панелей
         main_container = ttk.Frame(self)
         main_container.pack(fill="both", expand=True, padx=10, pady=10)
         
-        # Левая панель: Настройки поиска и Фильтрации
-        left_panel = ttk.LabelFrame(main_container, text=" Настройки поиска ", width=250, padding=10)
-        left_panel.pack(side="left", fill="y")
-        left_panel.pack_propagate(False) # Блокирует деформацию размеров
+        left_panel = ttk.Frame(main_container)
+        left_panel.pack(side="left", fill="y", padx=(0, 10))
         
-        ttk.Label(left_panel, text="Поиск по модели/бренду:").pack(anchor="w", pady=2)
-        self.search_entry = tk.Entry(left_panel, font=("Arial", 10), bg=colors["entry_bg"], fg=colors["fg"], insertbackground=colors["accent"], highlightthickness=1, highlightbackground=colors["card"], highlightcolor=colors["accent"], bd=0)
-        self.search_entry.pack(fill="x", pady=5)
-        self.search_entry.bind("<KeyRelease>", lambda event: self.refresh_table())
+        form_frame = ttk.LabelFrame(left_panel, text=" Управление каталогом ", padding=15)
+        form_frame.pack(fill="x", pady=(0, 10))
         
-        ttk.Label(left_panel, text="Фильтр по категории:").pack(anchor="w", pady=10)
-        categories = ["Все категории"] + list(set(p["category"] for p in self.products))
-        self.filter_category = ttk.Combobox(left_panel, values=categories, state="readonly")
-        self.filter_category.set("Все категории")
-        self.filter_category.pack(fill="x", pady=5)
-        self.filter_category.bind("<<ComboboxSelected>>", lambda event: self.refresh_table())
+        ttk.Label(form_frame, text="Название обуви:").pack(anchor="w")
+        self.entry_name = tk.Entry(form_frame, font=("Arial", 10), bg=colors["entry_bg"], fg=colors["fg"], insertbackground=colors["accent"], bd=1)
+        self.entry_name.pack(fill="x", pady=(2, 8))
         
-        ttk.Label(left_panel, text="Максимальная цена (руб):").pack(anchor="w", pady=10)
-        self.price_filter_entry = tk.Entry(left_panel, font=("Arial", 10), bg=colors["entry_bg"], fg=colors["fg"], insertbackground=colors["accent"], highlightthickness=1, highlightbackground=colors["card"], highlightcolor=colors["accent"], bd=0)
-        self.price_filter_entry.pack(fill="x", pady=5)
-# ... (Завершение сборки левой панели поиска) ...
-        self.price_filter_entry.bind("<KeyRelease>", lambda event: self.refresh_table())
+        ttk.Label(form_frame, text="Бренд:").pack(anchor="w")
+        self.entry_brand = tk.Entry(form_frame, font=("Arial", 10), bg=colors["entry_bg"], fg=colors["fg"], insertbackground=colors["accent"], bd=1)
+        self.entry_brand.pack(fill="x", pady=(2, 8))
         
-        # Правая панель: Таблица товаров
+        ttk.Label(form_frame, text="Категория:").pack(anchor="w")
+        self.combo_category = ttk.Combobox(form_frame, values=["Спортивная", "Классическая", "Зимняя", "Повседневная", "Летняя"], state="readonly")
+        self.combo_category.pack(fill="x", pady=(2, 8))
+        
+        ttk.Label(form_frame, text="Материал:").pack(anchor="w")
+        self.entry_material = tk.Entry(form_frame, font=("Arial", 10), bg=colors["entry_bg"], fg=colors["fg"], insertbackground=colors["accent"], bd=1)
+        self.entry_material.pack(fill="x", pady=(2, 8))
+        
+        ttk.Label(form_frame, text="Цена (руб):").pack(anchor="w")
+        self.entry_price = tk.Entry(form_frame, font=("Arial", 10), bg=colors["entry_bg"], fg=colors["fg"], insertbackground=colors["accent"], bd=1)
+        self.entry_price.pack(fill="x", pady=(2, 12))
+        
+        btn_add = ttk.Button(form_frame, text="➕ Добавить товар", style="Add.TButton", command=self.add_product)
+        btn_add.pack(fill="x", pady=2)
+        
+        btn_del = ttk.Button(form_frame, text="❌ Удалить выбранный", style="Del.TButton", command=self.delete_product)
+        btn_del.pack(fill="x", pady=5)
+        
+        if self.current_role != "Администратор":
+            btn_add.configure(state="disabled")
+            btn_del.configure(state="disabled")
+            ttk.Label(form_frame, text="*Изменения доступны\nтолько Администратору", foreground="orange", font=("Arial", 9, "italic")).pack(pady=5)
+            
         right_panel = ttk.Frame(main_container)
-        right_panel.pack(side="right", fill="both", expand=True, padx=(10, 0))
+        right_panel.pack(side="right", fill="both", expand=True)
+        
+        filter_frame = ttk.Frame(right_panel)
+        filter_frame.pack(fill="x", pady=(0, 10))
+        
+        ttk.Label(filter_frame, text="🔍 Быстрый поиск:").pack(side="left", padx=(0, 10))
+        self.entry_search = tk.Entry(filter_frame, font=("Arial", 10), bg=colors["entry_bg"], fg=colors["fg"], insertbackground=colors["accent"], bd=1)
+        self.entry_search.pack(side="left", fill="x", expand=True, padx=(0, 10))
+        self.entry_search.bind("<KeyRelease>", self.refresh_table)
         
         table_frame = ttk.Frame(right_panel)
         table_frame.pack(fill="both", expand=True)
         
-        self.tree = ttk.Treeview(table_frame, columns=("id", "name", "brand", "category", "price", "material"), show="headings")
+        columns = ("id", "name", "brand", "category", "material", "price")
+        self.tree = ttk.Treeview(table_frame, columns=columns, show="headings")
+        
         self.tree.heading("id", text="ID")
-        self.tree.heading("name", text="Название")
+        self.tree.heading("name", text="Модель")
         self.tree.heading("brand", text="Бренд")
         self.tree.heading("category", text="Категория")
-        self.tree.heading("price", text="Цена (руб.)")
         self.tree.heading("material", text="Материал")
+        self.tree.heading("price", text="Цена")
         
         self.tree.column("id", width=40, anchor="center")
-        self.tree.column("price", width=110, anchor="e")
-        self.tree.pack(fill="both", expand=True, side="left")
+        self.tree.column("name", width=180, anchor="w")
+        self.tree.column("brand", width=100, anchor="center")
+        self.tree.column("category", width=120, anchor="center")
+        self.tree.column("material", width=100, anchor="center")
+        self.tree.column("price", width=100, anchor="e")
         
         scrollbar = ttk.Scrollbar(table_frame, orient="vertical", command=self.tree.yview)
         self.tree.configure(yscrollcommand=scrollbar.set)
-        scrollbar.pack(fill="y", side="right")
         
-        # Нижняя панель действий (Управление каталогом)
-        crud_frame = ttk.LabelFrame(right_panel, text=" Панель управления каталогом ", padding=10)
-        crud_frame.pack(fill="x", side="bottom", pady=(10, 0))
+        self.tree.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
         
-        if self.current_role == "Администратор":
-            btn_add = ttk.Button(crud_frame, text="➕ Добавить пару обуви", style="Add.TButton", command=self.open_add_window)
-            btn_add.pack(side="left", padx=5)
-            
-            btn_delete = ttk.Button(crud_frame, text="❌ Удалить модель", style="Del.TButton", command=self.delete_product)
-            btn_delete.pack(side="left", padx=5)
-        else:
-            lbl_restricted = ttk.Label(crud_frame, text="🔒 Изменение каталога доступна только Администраторам системы.", font=("Arial", 10, "italic"))
-            lbl_restricted.pack(anchor="center")
-            
         self.refresh_table()
 
-    # ================= ЛОГИКА ТАБЛИЦЫ, ПОИСКА И ФИЛЬТРОВ =================
-    def refresh_table(self):
-        for row in self.tree.get_children():
-            self.tree.delete(row)
+    # ================= ЛОГИКА SQL РАБОТЫ С ДАННЫМИ =================
+    def refresh_table(self, event=None):
+        """Обновление таблицы, загружая актуальные данные из SQLite с фильтрацией."""
+        for item in self.tree.get_children():
+            self.tree.delete(item)
             
-        search_query = self.search_entry.get().lower().strip()
-        selected_category = self.filter_category.get()
-        max_price_str = self.price_filter_entry.get().strip()
+        search_query = self.entry_search.get().strip().lower() if hasattr(self, 'entry_search') else ""
         
-        try:
-            max_price = float(max_price_str) if max_price_str else float('inf')
-        except ValueError:
-            max_price = float('inf')
+        conn = sqlite3.connect(DB_NAME)
+        cursor = conn.cursor()
+        
+        if search_query:
+            cursor.execute(
+                "SELECT id, name, brand, category, material, price FROM products WHERE LOWER(name) LIKE ? OR LOWER(brand) LIKE ?",
+                (f"%{search_query}%", f"%{search_query}%")
+            )
+        else:
+            cursor.execute("SELECT id, name, brand, category, material, price FROM products")
             
-        for p in self.products:
-            matches_search = (search_query in p["name"].lower() or search_query in p["brand"].lower())
-            matches_category = (selected_category == "Все категории" or p["category"] == selected_category)
-            matches_price = p["price"] <= max_price
-            
-            if matches_search and matches_category and matches_price:
-                self.tree.insert("", "end", values=(p["id"], p["name"], p["brand"], p["category"], f"{p['price']:.2f}", p["material"]))
+        rows = cursor.fetchall()
+        conn.close()
+        
+        for r in rows:
+            # Исправлена распаковка кортежа r по индексам
+            self.tree.insert("", "end", values=(r[0], r[1], r[2], r[3], r[4], f"{r[5]:.2f} руб."))
 
-    # ================= ЛОГИКА ДОБАВЛЕНИЯ И УДАЛЕНИЯ =================
-    def delete_product(self):
-        selected_item = self.tree.selection()
-        if not selected_item:
-            messagebox.showwarning("Внимание", "Выберите товар в таблице для удаления!")
+    def add_product(self):
+        """Добавление нового товара в SQLite."""
+        name = self.entry_name.get().strip()
+        brand = self.entry_brand.get().strip()
+        category = self.combo_category.get()
+        material = self.entry_material.get().strip()
+        price_raw = self.entry_price.get().strip()
+        
+        if not (name and brand and category and material and price_raw):
+            messagebox.showwarning("Ошибка ввода", "Пожалуйста, заполните все поля формы!")
             return
             
-        product_id = int(self.tree.item(selected_item)["values"][0])
-        self.products = [p for p in self.products if p["id"] != product_id]
-        messagebox.showinfo("Успех", "Товар успешно удален.")
-        self.refresh_table()
-
-    def open_add_window(self):
-        self.add_win = tk.Toplevel(self)
-        self.add_win.title("Добавление товара")
-        self.add_win.geometry("360x420")
-        self.add_win.grab_set()
-        
-        colors = THEMES[self.current_theme]
-        self.add_win.configure(bg=colors["bg"])
-        
-        frame = ttk.Frame(self.add_win, padding=15)
-        frame.pack(fill="both", expand=True)
-        
-        ttk.Label(frame, text="Название модели:").pack(anchor="w")
-        self.add_name = tk.Entry(frame, font=("Arial", 10), bg=colors["entry_bg"], fg=colors["fg"], insertbackground=colors["accent"], highlightthickness=1, highlightbackground=colors["card"], highlightcolor=colors["accent"], bd=0)
-        self.add_name.pack(fill="x", pady=3)
-        
-        ttk.Label(frame, text="Бренд:").pack(anchor="w")
-        self.add_brand = tk.Entry(frame, font=("Arial", 10), bg=colors["entry_bg"], fg=colors["fg"], insertbackground=colors["accent"], highlightthickness=1, highlightbackground=colors["card"], highlightcolor=colors["accent"], bd=0)
-        self.add_brand.pack(fill="x", pady=3)
-        
-        ttk.Label(frame, text="Категория:").pack(anchor="w")
-        self.add_cat = ttk.Combobox(frame, values=["Спортивная", "Классическая", "Зимняя", "Повседневная"], state="readonly")
-        self.add_cat.pack(fill="x", pady=3)
-        
-        ttk.Label(frame, text="Цена (руб):").pack(anchor="w")
-        self.add_price = tk.Entry(frame, font=("Arial", 10), bg=colors["entry_bg"], fg=colors["fg"], insertbackground=colors["accent"], highlightthickness=1, highlightbackground=colors["card"], highlightcolor=colors["accent"], bd=0)
-        self.add_price.pack(fill="x", pady=3)
-        
-        ttk.Label(frame, text="Материал:").pack(anchor="w")
-        self.add_mat = tk.Entry(frame, font=("Arial", 10), bg=colors["entry_bg"], fg=colors["fg"], insertbackground=colors["accent"], highlightthickness=1, highlightbackground=colors["card"], highlightcolor=colors["accent"], bd=0)
-        self.add_mat.pack(fill="x", pady=3)
-        
-        btn_save = ttk.Button(frame, text="💾 Сохранить в базу", command=self.save_new_product)
-        btn_save.pack(fill="x", pady=20)
-
-    def save_new_product(self):
         try:
-            name = self.add_name.get().strip()
-            brand = self.add_brand.get().strip()
-            category = self.add_cat.get()
-            price = float(self.add_price.get().strip())
-            material = self.add_mat.get().strip()
-            
-            if not (name and brand and category and material):
-                raise ValueError()
-                
-            new_id = max(p["id"] for p in self.products) + 1 if self.products else 1
-            self.products.append({
-                "id": new_id, "name": name, "brand": brand, "category": category, "price": price, "material": material
-            })
-            
-            messagebox.showinfo("Успех", "Товар успешно добавлен!")
-            self.add_win.destroy()
-            self.show_main_screen()
-            
+            price = float(price_raw)
+            if price <= 0: raise ValueError
         except ValueError:
-            messagebox.showerror("Ошибка валидации", "Заполните все поля! Поле 'Цена' должно содержать число.")
+            messagebox.showerror("Ошибка типа", "Цена должна быть положительным числом!")
+            return
+            
+        conn = sqlite3.connect(DB_NAME)
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT INTO products (name, brand, category, price, material) VALUES (?, ?, ?, ?, ?)",
+            (name, brand, category, price, material)
+        )
+        conn.commit()
+        conn.close()
+        
+        self.entry_name.delete(0, tk.END)
+        self.entry_brand.delete(0, tk.END)
+        self.entry_material.delete(0, tk.END)
+        self.entry_price.delete(0, tk.END)
+        
+        self.refresh_table()
+        messagebox.showinfo("Успех", f"Товар '{name}' успешно сохранен в базу данных.")
+
+    def delete_product(self):
+        """Удаление выбранного товара из SQLite."""
+        selected_item = self.tree.selection()
+        if not selected_item:
+            messagebox.showwarning("Выбор отсутвует", "Выберите строку с товаром для удаления!")
+            return
+            
+        item_values = self.tree.item(selected_item, "values")
+        prod_id = int(item_values[0])
+        prod_name = item_values[1]
+        
+        if messagebox.askyesno("Подтверждение", f"Вы действительно хотите удалить '{prod_name}' из базы данных?"):
+            conn = sqlite3.connect(DB_NAME)
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM products WHERE id = ?", (prod_id,))
+            conn.commit()
+            conn.close()
+            self.refresh_table()
 
     def change_theme(self, event):
         self.current_theme = self.theme_combo.get()
@@ -317,7 +412,8 @@ class ShoeStoreApp(tk.Tk):
         for widget in self.winfo_children():
             widget.destroy()
 
-# Исправлено: корректные двойные подчеркивания для системной переменной
+
 if __name__ == "__main__":
+    init_db()  # Сначала проверяем и подготавливаем базу данных
     app = ShoeStoreApp()
     app.mainloop()
