@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Информационная система: Магазин обуви</title>
+    <style>
+        body { background-color: {{ theme.bg }}; color: {{ theme.fg }}; font-family: Arial, sans-serif; margin: 0; padding: 0; }
+        .top-bar { background-color: {{ theme.card }}; padding: 10px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .user-info { font-weight: bold; }
+        .theme-select form { display: inline; }
+        .btn-logout { background-color: transparent; border: 1px solid {{ theme.fg }}; color: {{ theme.fg }}; padding: 5px 15px; border-radius: 4px; cursor: pointer; margin-left: 10px;}
+        .container { display: flex; padding: 20px; gap: 20px; }
+        .left-panel { width: 300px; flex-shrink: 0; }
+        .right-panel { flex-grow: 1; }
+        .form-frame { background-color: {{ theme.card }}; padding: 20px; border-radius: 6px; border-top: 3px solid {{ theme.accent }}; }
+        .form-frame h3 { margin-top: 0; color: {{ theme.accent }}; }
+        label { display: block; margin: 8px 0 3px; font-size: 13px; }
+        input, select { width: 100%; padding: 8px; box-sizing: border-box; background-color: {{ theme.entry_bg }}; border: 1px solid rgba(255,255,255,0.1); color: {{ theme.fg }}; border-radius: 4px; margin-bottom: 5px;}
+        .btn-add { width: 100%; padding: 10px; background-color: #2ECC71; color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; margin-top: 10px;}
+        .btn-disabled { background-color: #7F8C8D; cursor: not-allowed; opacity: 0.6; }
+        .restricted-text { color: orange; font-style: italic; font-size: 12px; margin-top: 10px; text-align: center; }
+        .search-box { margin-bottom: 15px; display: flex; }
+        .search-box input { width: 100%; padding: 10px; }
+        table { width: 100%; border-collapse: collapse; background-color: {{ theme.card }}; border-radius: 6px; overflow: hidden; }
+        th { background-color: {{ theme.bg }}; color: {{ theme.accent }}; padding: 12px; text-align: left; font-weight: bold; border-bottom: 2px solid {{ theme.bg }}; }
+        td { padding: 10px 12px; border-bottom: 1px solid rgba(255,255,255,0.05); }
+        tr:hover { background-color: rgba(255,255,255,0.05); }
+        .btn-del { background-color: #E74C3C; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; }
+        .flash-container { padding: 10px 20px; }
+        .flash { padding: 10px; border-radius: 4px; margin-bottom: 10px; font-weight: bold; }
+        .flash.success { background-color: #2ECC71; color: white; }
+        .flash.error { background-color: #E74C3C; color: white; }
+    </style>
+</head>
+<body>
+
+    <div class="top-bar">
+        <div class="user-info">👤 Пользователь: {{ session.user }} ({{ session.role }}) 
+            <a href="{{ url_for('logout') }}"><button class="btn-logout">Выйти</button></a>
+        </div>
+        <div class="theme-select">
+            Тема оформления:
+            <form action="{{ url_for('change_theme') }}" method="POST">
+                <select name="theme" onchange="this.form.submit()" style="width: auto; display: inline-block;">
+                    {% for key, th in themes_list.items() %}
+                        <option value="{{ key }}" {% if current_theme_key == key %}selected{% endif %}>{{ th.name }}</option>
+                    {% endfor %}
+                </select>
+            </form>
+        </div>
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <div class="flash-container">
+                {% for category, msg in messages %}
+                    <div class="flash {{ category }}">{{ msg }}</div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    {% endwith %}
+
+    <div class="container">
+        <!-- Левая панель: Форма управления -->
+        <div class="left-panel">
+            <div class="form-frame">
+                <h3>Управление каталогом</h3>
+                <form action="{{ url_for('add_product') }}" method="POST">
+                    <label>Название обуви:</label>
+                    <input type="text" name="name" {% if session.role != 'Администратор' %}disabled{% endif %}>
+
+                    <label>Бренд:</label>
+                    <input type="text" name="brand" {% if session.role != 'Администратор' %}disabled{% endif %}>
+
+                    <label>Категория:</label>
+                    <select name="category" {% if session.role != 'Администратор' %}disabled{% endif %}>
+                        <option value="Спортивная">Спортивная</option>
+                        <option value="Классическая">Классическая</option>
+                        <option value="Зимняя">Зимняя</option>
+                        <option value="Повседневная">Повседневная</option>
+                        <option value="Летняя">Летняя</option>
+                    </select>
+
+                    <label>Материал:</label>
+                    <input type="text" name="material" {% if session.role != 'Администратор' %}disabled{% endif %}>
+
+                    <label>Цена (руб):</label>
+                    <input type="text" name="price" {% if session.role != 'Администратор' %}disabled{% endif %}>
+
+                    {% if session.role == 'Администратор' %}
+                        <button type="submit" class="btn-add">➕ Добавить товар</button>
+                    {% else %}
+                        <button type="button" class="btn-add btn-disabled" disabled>➕ Добавить товар</button>
+                        <div class="restricted-text">*Изменения доступны<br>только Администратору</div>
+                    {% endif %}
+                </form>
+            </div>
+        </div>
+
+        <!-- Правая панель: Таблица и поиск -->
+        <div class="right-panel">
+            <div class="search-box">
+                <form method="GET" action="{{ url_for('main_screen') }}" style="width: 100%; display: flex; gap: 10px;">
+                    <input type="text" name="search" placeholder="🔍 Быстрый поиск по модели или бренду..." value="{{ search_query }}">
+                    <button type="submit" class="btn-logout" style="background-color: {{ theme.accent }}; border: none; color: white;">Найти</button>
+                </form>
+            </div>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Модель</th>
+                        <th>Бренд</th>
+                        <th>Категория</th>
+                        <th>Материал</th>
+                        <th>Цена</th>
+                        {% if session.role == 'Администратор' %}<th>Действие</th>{% endif %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in products %}
+                    <tr>
+                        <td>{{ row.id }}</td>
+                        <td>{{ row.name }}</td>
+                        <td>{{ row.brand }}</td>
+                        <td>{{ row.category }}</td>
+                        <td>{{ row.material }}</td>
+                        <td>{{ "%.2f"|format(row.price) }} руб.</td>
+                        {% if session.role == 'Администратор' %}
+                        <td>
+                            <form action="{{ url_for('delete_product', prod_id=row.id) }}" method="POST" onsubmit="return confirm('Вы действительно хотите удалить эту позицию?');">
+                                <button type="submit" class="btn-del">❌</button>
+                            </form>
+                        </td>
+                        {% endif %}
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="7" style="text-align: center; padding: 20px;">Товары не найдены</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</body>
+</html>

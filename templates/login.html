@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Авторизация пользователя</title>
+    <style>
+        body { background-color: {{ theme.bg }}; color: {{ theme.fg }}; font-family: Arial, sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        .card { background-color: {{ theme.card }}; padding: 30px; border-radius: 8px; width: 320px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); }
+        h2 { color: {{ theme.accent }}; margin-top: 0; font-size: 20px; text-align: center; border-bottom: 2px solid {{ theme.accent }}; padding-bottom: 10px; }
+        label { display: block; margin: 10px 0 5px; font-size: 14px; }
+        input { width: 100%; padding: 10px; box-sizing: border-box; background-color: {{ theme.entry_bg }}; border: 1px solid {{ theme.card }}; color: {{ theme.fg }}; border-radius: 4px; }
+        input:focus { border-color: {{ theme.accent }}; outline: none; }
+        .btn { width: 100%; padding: 10px; margin-top: 15px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; background-color: {{ theme.accent }}; color: #FFF; }
+        .btn-sec { background-color: transparent; border: 1px solid {{ theme.accent }}; color: {{ theme.accent }}; }
+        .flash { padding: 10px; margin-bottom: 15px; border-radius: 4px; font-size: 13px; text-align: center; background-color: #E74C3C; color: white; }
+        .flash.success { background-color: #2ECC71; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h2>Авторизация пользователя</h2>
+        
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, msg in messages %}
+                    <div class="flash {{ category }}">{{ msg }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <form method="POST">
+            <label>Логин:</label>
+            <input type="text" name="username" required>
+            
+            <label>Пароль:</label>
+            <input type="password" name="password" required>
+            
+            <button type="submit" class="btn">Войти в систему</button>
+        </form>
+        <a href="{{ url_for('register') }}"><button class="btn btn-sec">Зарегистрироваться</button></a>
+    </div>
+</body>
+</html>
