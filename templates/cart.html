@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Корзина покупок</title>
+    <style>
+        body { background-color: {{ theme.bg }}; color: {{ theme.fg }}; font-family: sans-serif; margin: 40px; }
+        .card { background-color: {{ theme.card }}; padding: 20px; border-radius: 8px; max-width: 800px; margin: 0 auto; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { padding: 10px; border: 1px solid {{ theme.entry_bg }}; text-align: left; }
+        th { background-color: {{ theme.entry_bg }}; }
+        .btn-back { background-color: {{ theme.accent }}; color: white; padding: 10px 15px; text-decoration: none; border-radius: 5px; display: inline-block; margin-bottom: 20px; }
+        .btn-delete { background-color: #E91E63; color: white; border: none; padding: 5px 10px; cursor: pointer; border-radius: 3px; }
+        .total { font-size: 18px; font-weight: bold; margin-top: 20px; text-align: right; }
+        .flash { padding: 10px; margin-bottom: 15px; border-radius: 4px; background-color: #2ECC71; color: white; }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <a href="{{ url_for('main_screen') }}" class="btn-back">← Вернуться в каталог</a>
+    
+    <h2>🛒 Ваша корзина</h2>
+
+    {% with messages = get_flashed_messages() %}
+      {% if messages %}
+        {% for msg in messages %}
+          <div class="flash">{{ msg }}</div>
+        -- {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    {% if cart_items %}
+        <table>
+            <thead>
+                <tr>
+                    <th>Модель</th>
+                    <th>Бренд</th>
+                    <th>Цена</th>
+                    <th>Количество</th>
+                    <th>Итого</th>
+                    <th>Действие</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in cart_items %}
+                <tr>
+                    <td>{{ item.name }}</td>
+                    <td>{{ item.brand }}</td>
+                    <td>{{ "%.2f"|format(item.price) }} руб.</td>
+                    <td>{{ item.quantity }} шт.</td>
+                    <td>{{ "%.2f"|format(item.price * item.quantity) }} руб.</td>
+                    <td>
+                        <form action="{{ url_for('delete_from_cart', item_id=item.cart_id) }}" method="POST" style="display:inline;">
+                            <button type="submit" class="btn-delete">Удалить</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <div class="total">
+            Общая стоимость: {{ "%.2f"|format(total_price) }} руб.
+        </div>
+    {% else %}
+        <p style="text-align: center; margin-top: 40px;">Ваша корзина пока пуста.</p>
+    {% endif %}
+</div>
+
+</body>
+</html>
