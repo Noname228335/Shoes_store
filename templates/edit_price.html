@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Изменение цены</title>
+    <style>
+        body {
+            background-color: {{ theme.bg }};
+            color: {{ theme.fg }};
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+        .card {
+            background-color: {{ theme.card }};
+            padding: 30px;
+            border-radius: 8px;
+            width: 350px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+        }
+        input[type="number"] {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0 20px 0;
+            background-color: {{ theme.entry_bg }};
+            color: {{ theme.fg }};
+            border: 1px solid {{ theme.accent }};
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        button {
+            width: 100%;
+            padding: 10px;
+            background-color: {{ theme.accent }};
+            color: #FFF;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        .back-link {
+            display: block;
+            text-align: center;
+            margin-top: 15px;
+            color: {{ theme.fg }};
+            text-decoration: none;
+        }
+        .flash {
+            padding: 10px;
+            margin-bottom: 15px;
+            border-radius: 4px;
+            background-color: #E74C3C;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h2>Изменение цены</h2>
+        
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            {% for category, msg in messages %}
+              <div class="flash">{{ msg }}</div>
+            {% endfor %}
+          {% endif %}
+        {% endwith %}
+
+        <p><strong>Модель:</strong> {{ product.name }}</p>
+        <p><strong>Бренд:</strong> {{ product.brand }}</p>
+        <p><strong>Текущая цена:</strong> {{ "%.2f"|format(product.price) }} руб.</p>
+		{% if less_or_equal_count > 1 %}
+        <div style="background-color: rgba(243, 156, 18, 0.2); border-left: 4px solid #F39C12; padding: 10px; margin-bottom: 15px; font-size: 14px;">
+            ⚠️ <strong>Внимание:</strong> В каталоге найдено <strong>{{ less_or_equal_count }}</strong> товаров с ценой ≤ {{ "%.2f"|format(product.price) }} руб.
+        </div>
+        {% endif %}
+
+
+            <form method="POST">
+            <label for="price">Новая цена (руб):</label>
+            <input type="number" step="0.01" id="price" name="price" value="{{ product.price }}" required>
+            
+            <!-- Первая кнопка: меняет только текущий товар -->
+            <button type="submit" name="update_mode" value="single">
+                Изменить только для этой модели
+            </button>
+
+            <!-- Вторая кнопка: меняет все товары с ценой <= текущей -->
+            {% if less_or_equal_count > 1 %}
+            <button type="submit" name="update_mode" value="less_or_equal" style="margin-top: 10px; background-color: #E67E22;">
+                Изменить для всех с ценой ≤ {{ "%.2f"|format(product.price) }} руб. ({{ less_or_equal_count }} шт.)
+            </button>
+            {% endif %}
+        </form>
+
+
+        <a href="{{ url_for('main_screen') }}" class="back-link">← Вернуться в каталог</a>
+    </div>
+</body>
+</html>
