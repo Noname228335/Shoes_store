@@ -37,6 +37,7 @@
     <div class="top-bar">
         <div class="user-info">👤 Пользователь: {{ session.user }} ({{ session.role }}) 
             <a href="{{ url_for('logout') }}"><button class="btn-logout">Выйти</button></a>
+			<a href="{{ url_for('view_cart') }}" style="background-color: {{ theme.accent }}; color: white; padding: 5px 10px; text-decoration: none; border-radius: 4px; margin-right: 10px;">🛒 Корзина</a>
         </div>
         <div class="theme-select">
             Тема оформления:
@@ -115,18 +116,35 @@
                         <th>Категория</th>
                         <th>Материал</th>
                         <th>Цена</th>
+						<th>Действие</th>
+						<th>Купить</th>
                         {% if session.role == 'Администратор' %}<th>Действие</th>{% endif %}
                     </tr>
                 </thead>
                 <tbody>
                     {% for row in products %}
                     <tr>
+					<td>
+						<form action="{{ url_for('add_to_cart', prod_id=row.id) }}" method="POST" style="display:inline;">
+							<button type="submit" style="background-color: {{ theme.accent }}; color: {{ theme.fg }}; border: none; padding: 3px 8px; cursor: pointer; border-radius: 3px;">
+								🛒 В корзину
+						</button>
+						</form>
+						</td>
                         <td>{{ row.id }}</td>
                         <td>{{ row.name }}</td>
                         <td>{{ row.brand }}</td>
                         <td>{{ row.category }}</td>
                         <td>{{ row.material }}</td>
                         <td>{{ "%.2f"|format(row.price) }} руб.</td>
+						
+						{% if session.role == 'Администратор' %}
+							<td>
+								<!-- Ссылка на новое окно изменения цены -->
+								<a href="{{ url_for('edit_price', prod_id=row.id) }}" title="Изменить цену" style="text-decoration: none; margin-right: 10px;">✏️</a>
+							
+							</td>
+						{% endif %}
                         {% if session.role == 'Администратор' %}
                         <td>
                             <form action="{{ url_for('delete_product', prod_id=row.id) }}" method="POST" onsubmit="return confirm('Вы действительно хотите удалить эту позицию?');">
@@ -134,6 +152,7 @@
                             </form>
                         </td>
                         {% endif %}
+						
                     </tr>
                     {% else %}
                     <tr>
