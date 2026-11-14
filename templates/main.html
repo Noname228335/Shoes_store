@@ -137,6 +137,14 @@
                         <td>{{ row.category }}</td>
                         <td>{{ row.material }}</td>
                         <td>{{ "%.2f"|format(row.price) }} руб.</td>
+						
+						{% if session.role == 'Администратор' %}
+							<td>
+								<!-- Ссылка на новое окно изменения цены -->
+								<a href="{{ url_for('edit_price', prod_id=row.id) }}" title="Изменить цену" style="text-decoration: none; margin-right: 10px;">✏️</a>
+							
+							</td>
+						{% endif %}
                         {% if session.role == 'Администратор' %}
                         <td>
                             <form action="{{ url_for('delete_product', prod_id=row.id) }}" method="POST" onsubmit="return confirm('Вы действительно хотите удалить эту позицию?');">
@@ -144,6 +152,7 @@
                             </form>
                         </td>
                         {% endif %}
+						
                     </tr>
                     {% else %}
                     <tr>

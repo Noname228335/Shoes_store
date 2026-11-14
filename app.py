@@ -223,6 +223,56 @@ def delete_from_cart(item_id):
     # СТАЛО:
     return redirect(url_for("view_cart"))  # Перенаправляем на функцию просмотра корзины
 
+@app.route("/edit_price/<int:prod_id>", methods=["GET", "POST"])
+def edit_price(prod_id):
+    if session.get("role") != "Администратор":
+        flash("Изменения доступны только Администратору!", "error")
+        return redirect(url_for("main_screen"))
+
+    conn = get_db_connection()
+    product = conn.execute("SELECT * FROM products WHERE id = ?", (prod_id,)).fetchone()
+
+    if not product:
+        conn.close()
+        flash("Товар не найден!", "error")
+        return redirect(url_for("main_screen"))
+
+    old_price = product["price"]
+    # Считаем количество товаров, у которых цена <= old_price
+    less_or_equal_count = conn.execute(
+        "SELECT COUNT(*) FROM products WHERE price <= ?", (old_price,)
+    ).fetchone()[0]
+
+    if request.method == "POST":
+        price_raw = request.form.get("price", "").strip()
+        update_mode = request.form.get("update_mode", "single")
+
+        try:
+            new_price = float(price_raw)
+            if new_price <= 0:
+                raise ValueError
+        except ValueError:
+            conn.close()
+            flash("Цена должна быть положительным числом!", "error")
+            return redirect(url_for("edit_price", prod_id=prod_id))
+
+        if update_mode == "less_or_equal":
+            # Обновляем ВСЕ товары с ценой <= old_price
+            cursor = conn.execute("UPDATE products SET price = ? WHERE price <= ?", (new_price, old_price))
+            updated_count = cursor.rowcount
+            flash(f"Цена обновлена для всех товаров с ценой ≤ {old_price:.2f} руб. (изменено: {updated_count} шт.)!", "success")
+        else:
+            # Обновляем ТОЛЬКО выбранную пару обуви
+            conn.execute("UPDATE products SET price = ? WHERE id = ?", (new_price, prod_id))
+            flash(f"Цена для '{product['name']}' успешно обновлена!", "success")
+
+        conn.commit()
+        conn.close()
+        return redirect(url_for("main_screen"))
+
+    conn.close()
+    return render_template("edit_price.html", product=product, less_or_equal_count=less_or_equal_count)
+
 
 @app.route("/logout")
 def logout():
