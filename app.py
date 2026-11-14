@@ -5,7 +5,6 @@ from database import init_db, get_db_connection
 app = Flask(__name__)
 app.secret_key = "super_secret_key_for_shoe_store"
 
-# Цветовые палитры полностью перенесены из Tkinter проекта
 THEMES = {
     "classic": {
         "name": "Темная классика",
@@ -31,7 +30,6 @@ THEMES = {
 
 @app.context_processor
 def inject_theme():
-    """Передает текущую выбранную тему во все HTML-шаблоны."""
     theme_key = session.get("theme", "classic")
     if theme_key not in THEMES:
         theme_key = "classic"
@@ -49,11 +47,12 @@ def login():
         password = request.form.get("password", "").strip()
         
         conn = get_db_connection()
-        user = conn.execute("SELECT role FROM users WHERE username = ? AND password = ?", (username, password)).fetchone()
+        user = conn.execute("SELECT id, role FROM users WHERE username = ? AND password = ?", (username, password)).fetchone()
         conn.close()
         
         if user:
             session["user"] = username
+            session["user_id"] = user["id"]  # Сохраняем ID пользователя для корзины
             session["role"] = user["role"]
             flash(f"Добро пожаловать, {username} ({user['role']})!", "success")
             return redirect(url_for("main_screen"))
@@ -152,6 +151,128 @@ def delete_product(prod_id):
     
     flash("Товар успешно удален из базы данных.", "success")
     return redirect(url_for("main_screen"))
+
+# --- НАШИ НОВЫЕ МАРШРУТЫ ДЛЯ КОРЗИНЫ ---
+
+@app.route("/add_to_cart/<int:prod_id>", methods=["POST"])
+def add_to_cart(prod_id):
+    if "user_id" not in session:
+        return redirect(url_for("login"))
+        
+    user_id = session["user_id"]
+    conn = get_db_connection()
+    
+    # Проверяем, есть ли уже этот товар в корзине у текущего пользователя
+    existing_item = conn.execute(
+        "SELECT id, quantity FROM cart WHERE user_id = ? AND product_id = ?", 
+        (user_id, prod_id)
+    ).fetchone()
+    
+    if existing_item:
+        # Если есть, увеличиваем количество
+        conn.execute(
+            "UPDATE cart SET quantity = quantity + 1 WHERE id = ?", 
+            (existing_item["id"],)
+        )
+    else:
+        # Если нет, добавляем новую запись
+        conn.execute(
+            "INSERT INTO cart (user_id, product_id, quantity) VALUES (?, ?, 1)", 
+            (user_id, prod_id)
+        )
+        
+    conn.commit()
+    conn.close()
+    flash("Товар добавлен в корзину!", "success")
+    return redirect(url_for("main_screen"))
+
+@app.route("/cart")
+def view_cart():
+    if "user_id" not in session:
+        return redirect(url_for("login"))
+        
+    user_id = session["user_id"]
+    conn = get_db_connection()
+    
+    # Собираем данные товаров, находящихся в корзине, используя JOIN
+    cart_items = conn.execute('''
+        SELECT cart.id as cart_id, products.name, products.brand, products.price, cart.quantity 
+        FROM cart 
+        JOIN products ON cart.product_id = products.id 
+        WHERE cart.user_id = ?
+    ''', (user_id,)).fetchall()
+    
+    # Считаем общую стоимость корзины
+    total_price = sum(item["price"] * item["quantity"] for item in cart_items)
+    conn.close()
+    
+    return render_template("cart.html", cart_items=cart_items, total_price=total_price)
+
+@app.route("/delete_from_cart/<int:item_id>", methods=["POST"])
+def delete_from_cart(item_id):
+    if "user_id" not in session:
+        return redirect(url_for("login"))
+        
+    conn = get_db_connection()
+    conn.execute("DELETE FROM cart WHERE id = ? AND user_id = ?", (item_id, session["user_id"]))
+    conn.commit()
+    conn.close()
+    
+    flash("Товар удален из корзины.", "success")
+    # БЫЛО: return redirect(url_for("cart"))
+    # СТАЛО:
+    return redirect(url_for("view_cart"))  # Перенаправляем на функцию просмотра корзины
+
+@app.route("/edit_price/<int:prod_id>", methods=["GET", "POST"])
+def edit_price(prod_id):
+    if session.get("role") != "Администратор":
+        flash("Изменения доступны только Администратору!", "error")
+        return redirect(url_for("main_screen"))
+
+    conn = get_db_connection()
+    product = conn.execute("SELECT * FROM products WHERE id = ?", (prod_id,)).fetchone()
+
+    if not product:
+        conn.close()
+        flash("Товар не найден!", "error")
+        return redirect(url_for("main_screen"))
+
+    old_price = product["price"]
+    # Считаем количество товаров, у которых цена <= old_price
+    less_or_equal_count = conn.execute(
+        "SELECT COUNT(*) FROM products WHERE price <= ?", (old_price,)
+    ).fetchone()[0]
+
+    if request.method == "POST":
+        price_raw = request.form.get("price", "").strip()
+        update_mode = request.form.get("update_mode", "single")
+
+        try:
+            new_price = float(price_raw)
+            if new_price <= 0:
+                raise ValueError
+        except ValueError:
+            conn.close()
+            flash("Цена должна быть положительным числом!", "error")
+            return redirect(url_for("edit_price", prod_id=prod_id))
+
+        if update_mode == "less_or_equal":
+            # Обновляем ВСЕ товары с ценой <= old_price
+            cursor = conn.execute("UPDATE products SET price = ? WHERE price <= ?", (new_price, old_price))
+            updated_count = cursor.rowcount
+            flash(f"Цена обновлена для всех товаров с ценой ≤ {old_price:.2f} руб. (изменено: {updated_count} шт.)!", "success")
+        else:
+            # Обновляем ТОЛЬКО выбранную пару обуви
+            conn.execute("UPDATE products SET price = ? WHERE id = ?", (new_price, prod_id))
+            flash(f"Цена для '{product['name']}' успешно обновлена!", "success")
+
+        conn.commit()
+        conn.close()
+        return redirect(url_for("main_screen"))
+
+    conn.close()
+    return render_template("edit_price.html", product=product, less_or_equal_count=less_or_equal_count)
+
 
 @app.route("/logout")
 def logout():
